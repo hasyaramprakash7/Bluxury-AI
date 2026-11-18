@@ -26,6 +26,8 @@ export default function VendorDashboard({
   logs,
   pin,
   pinVerified,
+  darkMode,
+  onToggleTheme,
   onPinChange,
   onVendorAuth,
   onLogoutVendor,
@@ -40,7 +42,7 @@ export default function VendorDashboard({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("bookings");
   const [companyLoginInput, setCompanyLoginInput] = useState(
-    workspace.profile.company_name || vendorId || ""
+    workspace.profile.company_name || vendorId || "bluxury"
   );
 
   const [profile, setProfile] = useState(workspace.profile);
@@ -94,70 +96,8 @@ export default function VendorDashboard({
     setDrawerOpen(false);
   };
 
-  if (!vendorId || !pinVerified) {
-    return (
-      <div className="h-[100dvh] w-full flex items-center justify-center p-4 bg-gradient-to-b from-[#f8fafd] via-[#f3f7fe] to-[#e4effd] lg:bg-none lg:bg-[#131314] text-[#1f1f1f] lg:text-[#e3e3e3]">
-        <div className="w-full max-w-md rounded-3xl p-6 sm:p-8 bg-white lg:bg-[#1e1f20] border border-[#dfe4ea] lg:border-[#282a2c] shadow-xl space-y-5">
-          <div className="flex flex-col items-center text-center space-y-2">
-            <GeminiSparkle className="w-10 h-10" />
-            <h2 className="text-xl sm:text-2xl font-normal tracking-tight">
-              Vendor Workspace Access
-            </h2>
-            <p className="text-xs text-[#5f6368] lg:text-[#9aa0a6]">
-              Enter your <strong>Company Name</strong> and <strong>Password</strong> to open or
-              create your vendor dashboard.
-            </p>
-          </div>
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              onVendorAuth(companyLoginInput, pin);
-            }}
-            className="space-y-3.5"
-          >
-            <div>
-              <label className="block text-xs text-[#5f6368] lg:text-[#9aa0a6] mb-1">
-                Company Name / Vendor ID
-              </label>
-              <input
-                type="text"
-                required
-                value={companyLoginInput}
-                onChange={(e) => setCompanyLoginInput(e.target.value)}
-                placeholder="e.g., ProNexa or bluxury"
-                className="w-full rounded-2xl px-4 py-3 text-sm bg-[#f0f4f9] lg:bg-[#131314] border border-[#dfe4ea] lg:border-[#3c4043] focus:outline-none focus:border-[#0b57d0] lg:focus:border-[#a8c7fa]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs text-[#5f6368] lg:text-[#9aa0a6] mb-1">
-                Vendor Password
-              </label>
-              <input
-                type="password"
-                required
-                value={pin}
-                onChange={(e) => onPinChange(e.target.value)}
-                placeholder="Enter workspace password"
-                className="w-full rounded-2xl px-4 py-3 text-sm bg-[#f0f4f9] lg:bg-[#131314] border border-[#dfe4ea] lg:border-[#3c4043] focus:outline-none focus:border-[#0b57d0] lg:focus:border-[#a8c7fa]"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3 rounded-full bg-[#0b57d0] text-white lg:bg-[#a8c7fa] lg:text-[#041e49] text-sm font-medium transition cursor-pointer"
-            >
-              Enter Vendor Dashboard
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
   const renderSidebarBody = () => (
-    <div className="flex flex-col h-full bg-[#f0f4f9] lg:bg-[#1e1f20] text-[#1f1f1f] lg:text-[#e3e3e3] select-none">
+    <div className="flex flex-col h-full bg-[#f0f4f9] dark:bg-[#1e1f20] text-[#1f1f1f] dark:text-[#e3e3e3] select-none">
       <div className="px-4 pt-4 pb-2 flex items-center justify-between">
         <div className="flex items-center gap-2.5 min-w-0">
           <GeminiSparkle className="w-5 h-5 shrink-0" />
@@ -168,7 +108,7 @@ export default function VendorDashboard({
         <button
           type="button"
           onClick={() => setDrawerOpen(false)}
-          className="lg:hidden p-1.5 rounded-full hover:bg-black/5 text-[#444746] cursor-pointer"
+          className="lg:hidden p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer"
           aria-label="Close Menu"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -181,7 +121,7 @@ export default function VendorDashboard({
         <button
           type="button"
           onClick={onCopyClientLink}
-          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-full bg-[#dfe4ea] hover:bg-[#d3d9e2] lg:bg-[#282a2c] lg:hover:bg-[#333537] text-sm font-medium transition cursor-pointer"
+          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-full bg-[#dfe4ea] hover:bg-[#d3d9e2] dark:bg-[#282a2c] dark:hover:bg-[#333537] text-sm font-medium transition cursor-pointer"
         >
           <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -196,8 +136,8 @@ export default function VendorDashboard({
           onClick={() => selectTab("bookings")}
           className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-full transition cursor-pointer ${
             activeTab === "bookings"
-              ? "bg-[#d3e3fd] text-[#041e49] lg:bg-[#004a77]/50 lg:text-[#c2e7ff] font-medium"
-              : "hover:bg-black/5 lg:hover:bg-[#282a2c] text-[#444746] lg:text-[#c4c7c5]"
+              ? "bg-[#d3e3fd] text-[#041e49] dark:bg-[#004a77]/50 dark:text-[#c2e7ff] font-medium"
+              : "hover:bg-black/5 dark:hover:bg-[#282a2c] text-[#444746] dark:text-[#c4c7c5]"
           }`}
         >
           <span className="flex items-center gap-3">
@@ -206,7 +146,7 @@ export default function VendorDashboard({
             </svg>
             <span>Booked Timings</span>
           </span>
-          <span className="text-[11px] px-2 py-0.5 rounded-full bg-black/10 lg:bg-[#282a2c]">
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-black/10 dark:bg-[#282a2c]">
             {workspace.bookings.length}
           </span>
         </button>
@@ -216,8 +156,8 @@ export default function VendorDashboard({
           onClick={() => selectTab("profile")}
           className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-full transition cursor-pointer ${
             activeTab === "profile"
-              ? "bg-[#d3e3fd] text-[#041e49] lg:bg-[#004a77]/50 lg:text-[#c2e7ff] font-medium"
-              : "hover:bg-black/5 lg:hover:bg-[#282a2c] text-[#444746] lg:text-[#c4c7c5]"
+              ? "bg-[#d3e3fd] text-[#041e49] dark:bg-[#004a77]/50 dark:text-[#c2e7ff] font-medium"
+              : "hover:bg-black/5 dark:hover:bg-[#282a2c] text-[#444746] dark:text-[#c4c7c5]"
           }`}
         >
           <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -231,8 +171,8 @@ export default function VendorDashboard({
           onClick={() => selectTab("services")}
           className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-full transition cursor-pointer ${
             activeTab === "services"
-              ? "bg-[#d3e3fd] text-[#041e49] lg:bg-[#004a77]/50 lg:text-[#c2e7ff] font-medium"
-              : "hover:bg-black/5 lg:hover:bg-[#282a2c] text-[#444746] lg:text-[#c4c7c5]"
+              ? "bg-[#d3e3fd] text-[#041e49] dark:bg-[#004a77]/50 dark:text-[#c2e7ff] font-medium"
+              : "hover:bg-black/5 dark:hover:bg-[#282a2c] text-[#444746] dark:text-[#c4c7c5]"
           }`}
         >
           <span className="flex items-center gap-3">
@@ -241,7 +181,7 @@ export default function VendorDashboard({
             </svg>
             <span>Services & Courses</span>
           </span>
-          <span className="text-[11px] px-2 py-0.5 rounded-full bg-black/10 lg:bg-[#282a2c]">
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-black/10 dark:bg-[#282a2c]">
             {workspace.services.length}
           </span>
         </button>
@@ -251,8 +191,8 @@ export default function VendorDashboard({
           onClick={() => selectTab("logs")}
           className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-full transition cursor-pointer ${
             activeTab === "logs"
-              ? "bg-[#d3e3fd] text-[#041e49] lg:bg-[#004a77]/50 lg:text-[#c2e7ff] font-medium"
-              : "hover:bg-black/5 lg:hover:bg-[#282a2c] text-[#444746] lg:text-[#c4c7c5]"
+              ? "bg-[#d3e3fd] text-[#041e49] dark:bg-[#004a77]/50 dark:text-[#c2e7ff] font-medium"
+              : "hover:bg-black/5 dark:hover:bg-[#282a2c] text-[#444746] dark:text-[#c4c7c5]"
           }`}
         >
           <span className="flex items-center gap-3">
@@ -261,43 +201,35 @@ export default function VendorDashboard({
             </svg>
             <span>Latency Logs</span>
           </span>
-          <span className="text-[11px] px-2 py-0.5 rounded-full bg-black/10 lg:bg-[#282a2c]">
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-black/10 dark:bg-[#282a2c]">
             {logs.length}
           </span>
         </button>
       </nav>
 
-      <div className="flex-1 overflow-y-auto px-3 py-4 mt-2 border-t border-black/10 lg:border-[#2c2d2e] space-y-2.5">
+      <div className="flex-1 overflow-y-auto px-3 py-4 mt-2 border-t border-black/10 dark:border-[#2c2d2e] space-y-2.5">
         <button
           type="button"
           onClick={onPreviewClient}
-          className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-full bg-[#0b57d0] text-white lg:bg-[#a8c7fa] lg:text-[#041e49] text-xs font-medium transition cursor-pointer"
+          className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-full bg-[#0b57d0] text-white dark:bg-[#a8c7fa] dark:text-[#041e49] text-xs font-medium transition cursor-pointer"
         >
           <span>Open Client Storefront</span>
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
           </svg>
         </button>
-
-        <button
-          type="button"
-          onClick={onLogoutVendor}
-          className="w-full flex items-center justify-center gap-2 px-3.5 py-2 rounded-full bg-black/5 hover:bg-black/10 lg:bg-[#282a2c] lg:hover:bg-[#333537] text-xs font-medium transition cursor-pointer"
-        >
-          <span>Switch Company / Lock</span>
-        </button>
       </div>
 
-      <div className="px-4 py-3 border-t border-black/10 lg:border-[#2c2d2e] flex items-center justify-between">
+      <div className="px-4 py-3 border-t border-black/10 dark:border-[#2c2d2e] flex items-center justify-between">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="h-7 w-7 rounded-full bg-gradient-to-tr from-[#4285F4] via-[#9B72CB] to-[#D96570] text-white flex items-center justify-center text-xs font-semibold shrink-0">
-            {(workspace.profile.company_name || vendorId || "V")[0].toUpperCase()}
+            {(workspace.profile.company_name || vendorId || "B")[0].toUpperCase()}
           </div>
           <div className="truncate">
             <p className="text-xs font-medium truncate">
               {workspace.profile.company_name || vendorId}
             </p>
-            <p className="text-[10px] text-[#5f6368] lg:text-[#9aa0a6] truncate">
+            <p className="text-[10px] text-[#5f6368] dark:text-[#9aa0a6] truncate">
               {shortModelName}
             </p>
           </div>
@@ -305,7 +237,7 @@ export default function VendorDashboard({
         <span
           className={`text-[10px] px-2 py-0.5 rounded-full ${
             connected
-              ? "bg-emerald-500/15 text-emerald-700 lg:text-emerald-400"
+              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
               : "bg-rose-500/15 text-rose-600"
           }`}
         >
@@ -316,7 +248,7 @@ export default function VendorDashboard({
   );
 
   return (
-    <div className="relative flex h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#f8fafd] via-[#f3f7fe] to-[#e4effd] lg:bg-none lg:bg-[#131314] text-[#1f1f1f] lg:text-[#e3e3e3]">
+    <div className="relative flex h-[100dvh] w-full overflow-hidden bg-gradient-to-b from-[#f8fafd] via-[#f3f7fe] to-[#e4effd] dark:bg-none dark:bg-[#131314] text-[#1f1f1f] dark:text-[#e3e3e3]">
       {drawerOpen && (
         <div
           onClick={() => setDrawerOpen(false)}
@@ -332,18 +264,18 @@ export default function VendorDashboard({
         {renderSidebarBody()}
       </aside>
 
-      <aside className="hidden lg:block w-[268px] shrink-0 border-r border-[#282a2c]">
+      <aside className="hidden lg:block w-[268px] shrink-0 border-r border-[#dfe4ea] dark:border-[#282a2c]">
         {renderSidebarBody()}
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="px-4 py-3 flex items-center justify-between shrink-0">
+        <header className="px-4 py-3 flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={() => setDrawerOpen(true)}
               aria-label="Open Vendor Menu"
-              className="lg:hidden p-2 rounded-full hover:bg-black/5 text-[#1f1f1f] transition cursor-pointer"
+              className="lg:hidden p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 9h16M4 15h16" />
@@ -354,28 +286,36 @@ export default function VendorDashboard({
               <span className="text-[17px] font-medium truncate">
                 {workspace.profile.company_name || vendorId}
               </span>
-              <span className="text-[15px] text-[#5f6368] lg:text-[#9aa0a6] truncate">
+              <span className="hidden sm:inline text-[15px] text-[#5f6368] dark:text-[#9aa0a6] truncate">
                 {shortModelName}
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onPreviewClient}
-              className="px-3.5 py-1.5 rounded-full text-xs font-medium bg-white/90 hover:bg-white lg:bg-[#1e1f20] lg:hover:bg-[#282a2c] border border-[#dfe4ea] lg:border-[#3c4043] transition cursor-pointer"
-            >
-              Client View →
-            </button>
+            <div className="flex items-center p-0.5 rounded-full bg-white/90 dark:bg-[#1e1f20] border border-[#dfe4ea] dark:border-[#3c4043]">
+              <button
+                type="button"
+                className="px-3 py-1 rounded-full text-xs font-medium bg-[#0b57d0] text-white dark:bg-[#a8c7fa] dark:text-[#041e49] cursor-pointer"
+              >
+                Vendor
+              </button>
+              <button
+                type="button"
+                onClick={onPreviewClient}
+                className="px-3 py-1 rounded-full text-xs font-medium text-[#444746] dark:text-[#c4c7c5] hover:text-[#1f1f1f] dark:hover:text-white transition cursor-pointer"
+              >
+                Client
+              </button>
+            </div>
 
             <button
               type="button"
-              onClick={onLogoutVendor}
-              title="Lock / Switch Company"
-              className="px-3 py-1.5 rounded-full text-xs font-medium bg-white/90 hover:bg-white lg:bg-[#1e1f20] lg:hover:bg-[#282a2c] border border-[#dfe4ea] lg:border-[#3c4043] transition cursor-pointer"
+              onClick={onToggleTheme}
+              title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              className="p-2 rounded-full bg-white/90 dark:bg-[#1e1f20] border border-[#dfe4ea] dark:border-[#3c4043] hover:opacity-80 transition cursor-pointer text-xs"
             >
-              Lock
+              {darkMode ? "☀️" : "🌙"}
             </button>
           </div>
         </header>
@@ -392,8 +332,8 @@ export default function VendorDashboard({
                     {activeTab === "services" && "Services & Course Packages"}
                     {activeTab === "logs" && "Real-Time AI Latency Logs"}
                   </h2>
-                  <p className="text-xs text-[#5f6368] lg:text-[#9aa0a6]">
-                    Client URL: /client/{vendorId} • Password Protected
+                  <p className="text-xs text-[#5f6368] dark:text-[#9aa0a6]">
+                    Client URL: /client/{vendorId} • Active Workspace
                   </p>
                 </div>
               </div>
@@ -411,8 +351,8 @@ export default function VendorDashboard({
                     onClick={() => setActiveTab(t.id)}
                     className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition cursor-pointer ${
                       activeTab === t.id
-                        ? "bg-[#0b57d0] text-white lg:bg-[#a8c7fa] lg:text-[#041e49]"
-                        : "bg-white/80 hover:bg-white lg:bg-[#1e1f20] lg:hover:bg-[#282a2c] border border-[#dfe4ea] lg:border-[#2c2d2e]"
+                        ? "bg-[#0b57d0] text-white dark:bg-[#a8c7fa] dark:text-[#041e49]"
+                        : "bg-white/80 hover:bg-white dark:bg-[#1e1f20] dark:hover:bg-[#282a2c] border border-[#dfe4ea] dark:border-[#2c2d2e]"
                     }`}
                   >
                     {t.label}
@@ -424,17 +364,17 @@ export default function VendorDashboard({
             {activeTab === "bookings" && (
               <div className="space-y-3">
                 {workspace.bookings.length === 0 ? (
-                  <div className="rounded-3xl p-10 text-center bg-white/90 lg:bg-[#1e1f20] border border-[#dfe4ea] lg:border-[#282a2c] space-y-3">
+                  <div className="rounded-3xl p-10 text-center bg-white/90 dark:bg-[#1e1f20] border border-[#dfe4ea] dark:border-[#282a2c] space-y-3">
                     <GeminiSparkle className="w-8 h-8 mx-auto" />
                     <p className="text-sm font-medium">No bookings scheduled yet</p>
-                    <p className="text-xs text-[#5f6368] lg:text-[#9aa0a6] max-w-md mx-auto">
-                      Add your company details and services, then open Client View to test booking
-                      a slot with your AI concierge.
+                    <p className="text-xs text-[#5f6368] dark:text-[#9aa0a6] max-w-md mx-auto">
+                      Add your company details and services, then toggle to Client View to test
+                      booking a slot with your AI concierge.
                     </p>
                     <button
                       type="button"
                       onClick={onPreviewClient}
-                      className="px-5 py-2 rounded-full bg-[#0b57d0] text-white lg:bg-[#a8c7fa] lg:text-[#041e49] text-xs font-medium cursor-pointer"
+                      className="px-5 py-2 rounded-full bg-[#0b57d0] text-white dark:bg-[#a8c7fa] dark:text-[#041e49] text-xs font-medium cursor-pointer"
                     >
                       Test Client Concierge →
                     </button>
@@ -443,19 +383,19 @@ export default function VendorDashboard({
                   workspace.bookings.map((b) => (
                     <div
                       key={b.id}
-                      className="rounded-3xl p-5 bg-white/95 lg:bg-[#1e1f20] border border-[#dfe4ea] lg:border-[#282a2c] space-y-3 shadow-xs lg:shadow-none"
+                      className="rounded-3xl p-5 bg-white/95 dark:bg-[#1e1f20] border border-[#dfe4ea] dark:border-[#282a2c] space-y-3 shadow-xs dark:shadow-none"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div>
                           <h3 className="text-base font-medium">{b.project_title}</h3>
-                          <p className="text-xs font-medium text-[#0b57d0] lg:text-[#a8c7fa] mt-0.5">
+                          <p className="text-xs font-medium text-[#0b57d0] dark:text-[#a8c7fa] mt-0.5">
                             {b.booking_date} at {b.booking_time} • {b.service_name}
                           </p>
                         </div>
                         <select
                           value={b.status}
                           onChange={(e) => onUpdateStatus(b.id, e.target.value)}
-                          className="rounded-full px-3 py-1 text-xs font-medium bg-[#f0f4f9] lg:bg-[#282a2c] border border-[#dfe4ea] lg:border-[#3c4043] cursor-pointer"
+                          className="rounded-full px-3 py-1 text-xs font-medium bg-[#f0f4f9] dark:bg-[#282a2c] border border-[#dfe4ea] dark:border-[#3c4043] cursor-pointer"
                         >
                           <option value="pending">Pending</option>
                           <option value="confirmed">Confirmed</option>
@@ -464,12 +404,12 @@ export default function VendorDashboard({
                       </div>
 
                       {b.project_notes && (
-                        <p className="text-xs text-[#444746] lg:text-[#c4c7c5] rounded-2xl p-3 bg-[#f0f4f9] lg:bg-[#131314]">
+                        <p className="text-xs text-[#444746] dark:text-[#c4c7c5] rounded-2xl p-3 bg-[#f0f4f9] dark:bg-[#131314]">
                           <strong>Notes:</strong> {b.project_notes}
                         </p>
                       )}
 
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#5f6368] lg:text-[#9aa0a6]">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#5f6368] dark:text-[#9aa0a6]">
                         <span>Client: {b.client_name}</span>
                         <span>Contact: {b.client_contact}</span>
                       </div>
@@ -482,15 +422,15 @@ export default function VendorDashboard({
             {activeTab === "profile" && (
               <form
                 onSubmit={handleProfileSubmit}
-                className="rounded-3xl p-5 sm:p-6 bg-white/95 lg:bg-[#1e1f20] border border-[#dfe4ea] lg:border-[#282a2c] space-y-4"
+                className="rounded-3xl p-5 sm:p-6 bg-white/95 dark:bg-[#1e1f20] border border-[#dfe4ea] dark:border-[#282a2c] space-y-4"
               >
-                <div className="rounded-2xl p-4 bg-[#f0f4f9] lg:bg-[#131314] border border-[#dfe4ea] lg:border-[#2c2d2e] space-y-2">
+                <div className="rounded-2xl p-4 bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#2c2d2e] space-y-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <label className="text-xs font-medium text-[#0b57d0] lg:text-[#a8c7fa]">
+                    <label className="text-xs font-medium text-[#0b57d0] dark:text-[#a8c7fa]">
                       Active AI Model for Clients
                     </label>
                     {selectedModelMeta && (
-                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-[#d3e3fd] text-[#041e49] lg:bg-[#004a77]/60 lg:text-[#c2e7ff]">
+                      <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-[#d3e3fd] text-[#041e49] dark:bg-[#004a77]/60 dark:text-[#c2e7ff]">
                         {selectedModelMeta.tier} • {selectedModelMeta.dailyFreeEstimate}
                       </span>
                     )}
@@ -498,7 +438,7 @@ export default function VendorDashboard({
                   <select
                     value={profile.ai_model}
                     onChange={(e) => setProfile({ ...profile, ai_model: e.target.value })}
-                    className="w-full rounded-xl px-3.5 py-2.5 text-sm bg-white lg:bg-[#1e1f20] border border-[#dfe4ea] lg:border-[#3c4043] focus:outline-none"
+                    className="w-full rounded-xl px-3.5 py-2.5 text-sm bg-white dark:bg-[#1e1f20] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none"
                   >
                     {workspace.availableModels.map((m) => (
                       <option key={m.id} value={m.id}>
@@ -507,7 +447,7 @@ export default function VendorDashboard({
                     ))}
                   </select>
                   {selectedModelMeta && (
-                    <p className="text-xs text-[#5f6368] lg:text-[#9aa0a6]">
+                    <p className="text-xs text-[#5f6368] dark:text-[#9aa0a6]">
                       {selectedModelMeta.description}
                     </p>
                   )}
@@ -515,7 +455,7 @@ export default function VendorDashboard({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-[#5f6368] lg:text-[#9aa0a6] mb-1">
+                    <label className="block text-xs text-[#5f6368] dark:text-[#9aa0a6] mb-1">
                       Company / Brand Name
                     </label>
                     <input
@@ -523,12 +463,12 @@ export default function VendorDashboard({
                       required
                       value={profile.company_name}
                       onChange={(e) => setProfile({ ...profile, company_name: e.target.value })}
-                      placeholder="e.g., ProNexa"
-                      className="w-full rounded-2xl px-3.5 py-2.5 text-sm bg-[#f0f4f9] lg:bg-[#131314] border border-[#dfe4ea] lg:border-[#3c4043] focus:outline-none"
+                      placeholder="bluxury"
+                      className="w-full rounded-2xl px-3.5 py-2.5 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-[#5f6368] lg:text-[#9aa0a6] mb-1">
+                    <label className="block text-xs text-[#5f6368] dark:text-[#9aa0a6] mb-1">
                       Working / Counseling Hours
                     </label>
                     <input
@@ -536,26 +476,26 @@ export default function VendorDashboard({
                       value={profile.working_hours}
                       onChange={(e) => setProfile({ ...profile, working_hours: e.target.value })}
                       placeholder="Mon-Sat, 10:00 AM - 7:00 PM"
-                      className="w-full rounded-2xl px-3.5 py-2.5 text-sm bg-[#f0f4f9] lg:bg-[#131314] border border-[#dfe4ea] lg:border-[#3c4043] focus:outline-none"
+                      className="w-full rounded-2xl px-3.5 py-2.5 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs text-[#5f6368] lg:text-[#9aa0a6] mb-1">
+                    <label className="block text-xs text-[#5f6368] dark:text-[#9aa0a6] mb-1">
                       Tagline / Specialty
                     </label>
                     <input
                       type="text"
                       value={profile.tagline}
                       onChange={(e) => setProfile({ ...profile, tagline: e.target.value })}
-                      placeholder="Learn AI. Build Skills. Get Placed."
-                      className="w-full rounded-2xl px-3.5 py-2.5 text-sm bg-[#f0f4f9] lg:bg-[#131314] border border-[#dfe4ea] lg:border-[#3c4043] focus:outline-none"
+                      placeholder="Luxury Ecosystem & AI Solutions"
+                      className="w-full rounded-2xl px-3.5 py-2.5 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-[#5f6368] lg:text-[#9aa0a6] mb-1">
+                    <label className="block text-xs text-[#5f6368] dark:text-[#9aa0a6] mb-1">
                       Contact / WhatsApp Info
                     </label>
                     <input
@@ -563,13 +503,13 @@ export default function VendorDashboard({
                       value={profile.contact_info}
                       onChange={(e) => setProfile({ ...profile, contact_info: e.target.value })}
                       placeholder="Hyderabad | +91-9876543210"
-                      className="w-full rounded-2xl px-3.5 py-2.5 text-sm bg-[#f0f4f9] lg:bg-[#131314] border border-[#dfe4ea] lg:border-[#3c4043] focus:outline-none"
+                      className="w-full rounded-2xl px-3.5 py-2.5 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs text-[#5f6368] lg:text-[#9aa0a6] mb-1">
+                  <label className="block text-xs text-[#5f6368] dark:text-[#9aa0a6] mb-1">
                     Company Details, Offers, Placement Stats & FAQs
                   </label>
                   <textarea
@@ -577,26 +517,13 @@ export default function VendorDashboard({
                     value={profile.about_details}
                     onChange={(e) => setProfile({ ...profile, about_details: e.target.value })}
                     placeholder="Enter policies, placement stats, or offers that the AI should share with clients..."
-                    className="w-full rounded-2xl p-3.5 text-sm bg-[#f0f4f9] lg:bg-[#131314] border border-[#dfe4ea] lg:border-[#3c4043] focus:outline-none resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-[#5f6368] lg:text-[#9aa0a6] mb-1">
-                    Change Vendor Password (optional)
-                  </label>
-                  <input
-                    type="password"
-                    value={newPin}
-                    onChange={(e) => setNewPin(e.target.value)}
-                    placeholder="Leave blank to keep current password"
-                    className="w-full rounded-2xl px-3.5 py-2.5 text-sm bg-[#f0f4f9] lg:bg-[#131314] border border-[#dfe4ea] lg:border-[#3c4043] focus:outline-none"
+                    className="w-full rounded-2xl p-3.5 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none resize-none"
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-full bg-[#0b57d0] text-white lg:bg-[#a8c7fa] lg:text-[#041e49] text-sm font-medium transition cursor-pointer"
+                  className="w-full py-3 rounded-full bg-[#0b57d0] text-white dark:bg-[#a8c7fa] dark:text-[#041e49] text-sm font-medium transition cursor-pointer"
                 >
                   Save Profile & AI Model
                 </button>
@@ -607,7 +534,7 @@ export default function VendorDashboard({
               <div className="space-y-4">
                 <form
                   onSubmit={handleServiceSubmit}
-                  className="rounded-3xl p-5 bg-white/95 lg:bg-[#1e1f20] border border-[#dfe4ea] lg:border-[#282a2c] space-y-3"
+                  className="rounded-3xl p-5 bg-white/95 dark:bg-[#1e1f20] border border-[#dfe4ea] dark:border-[#282a2c] space-y-3"
                 >
                   <h3 className="text-sm font-medium">Add New Service or Course</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -617,21 +544,21 @@ export default function VendorDashboard({
                       value={serviceName}
                       onChange={(e) => setServiceName(e.target.value)}
                       placeholder="Name (e.g. Agentic AI)"
-                      className="rounded-2xl px-3.5 py-2 text-sm bg-[#f0f4f9] lg:bg-[#131314] border border-[#dfe4ea] lg:border-[#3c4043] focus:outline-none"
+                      className="rounded-2xl px-3.5 py-2 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none"
                     />
                     <input
                       type="text"
                       value={servicePrice}
                       onChange={(e) => setServicePrice(e.target.value)}
-                      placeholder="Price (e.g. Free Demo)"
-                      className="rounded-2xl px-3.5 py-2 text-sm bg-[#f0f4f9] lg:bg-[#131314] border border-[#dfe4ea] lg:border-[#3c4043] focus:outline-none"
+                      placeholder="Price (e.g. ₹25,000)"
+                      className="rounded-2xl px-3.5 py-2 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none"
                     />
                     <input
                       type="text"
                       value={serviceDuration}
                       onChange={(e) => setServiceDuration(e.target.value)}
-                      placeholder="Duration (e.g. 32 Lessons)"
-                      className="rounded-2xl px-3.5 py-2 text-sm bg-[#f0f4f9] lg:bg-[#131314] border border-[#dfe4ea] lg:border-[#3c4043] focus:outline-none"
+                      placeholder="Duration (e.g. 6 months)"
+                      className="rounded-2xl px-3.5 py-2 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none"
                     />
                   </div>
                   <div className="flex flex-col sm:flex-row gap-2.5">
@@ -640,11 +567,11 @@ export default function VendorDashboard({
                       value={serviceDesc}
                       onChange={(e) => setServiceDesc(e.target.value)}
                       placeholder="Syllabus, deliverables, or key features..."
-                      className="flex-1 rounded-2xl px-3.5 py-2 text-sm bg-[#f0f4f9] lg:bg-[#131314] border border-[#dfe4ea] lg:border-[#3c4043] focus:outline-none"
+                      className="flex-1 rounded-2xl px-3.5 py-2 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none"
                     />
                     <button
                       type="submit"
-                      className="px-5 py-2 rounded-full bg-[#0b57d0] text-white lg:bg-[#a8c7fa] lg:text-[#041e49] text-xs font-medium cursor-pointer shrink-0"
+                      className="px-5 py-2 rounded-full bg-[#0b57d0] text-white dark:bg-[#a8c7fa] dark:text-[#041e49] text-xs font-medium cursor-pointer shrink-0"
                     >
                       + Add Item
                     </button>
@@ -655,20 +582,20 @@ export default function VendorDashboard({
                   {workspace.services.map((s) => (
                     <div
                       key={s.id}
-                      className="rounded-3xl p-4 bg-white/95 lg:bg-[#1e1f20] border border-[#dfe4ea] lg:border-[#282a2c] flex items-start justify-between gap-3"
+                      className="rounded-3xl p-4 bg-white/95 dark:bg-[#1e1f20] border border-[#dfe4ea] dark:border-[#282a2c] flex items-start justify-between gap-3"
                     >
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-medium text-sm">{s.name}</span>
-                          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-[#d3e3fd] text-[#041e49] lg:bg-[#004a77]/60 lg:text-[#c2e7ff]">
+                          <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-[#d3e3fd] text-[#041e49] dark:bg-[#004a77]/60 dark:text-[#c2e7ff]">
                             {s.price}
                           </span>
-                          <span className="text-xs text-[#5f6368] lg:text-[#9aa0a6]">
+                          <span className="text-xs text-[#5f6368] dark:text-[#9aa0a6]">
                             • {s.duration}
                           </span>
                         </div>
                         {s.description && (
-                          <p className="text-xs text-[#444746] lg:text-[#c4c7c5] leading-relaxed">
+                          <p className="text-xs text-[#444746] dark:text-[#c4c7c5] leading-relaxed">
                             {s.description}
                           </p>
                         )}
@@ -687,22 +614,22 @@ export default function VendorDashboard({
             )}
 
             {activeTab === "logs" && (
-              <div className="rounded-3xl p-5 bg-white/95 lg:bg-[#1e1f20] border border-[#dfe4ea] lg:border-[#282a2c] space-y-3">
+              <div className="rounded-3xl p-5 bg-white/95 dark:bg-[#1e1f20] border border-[#dfe4ea] dark:border-[#282a2c] space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-[#5f6368] lg:text-[#9aa0a6]">
+                  <span className="text-xs font-medium text-[#5f6368] dark:text-[#9aa0a6]">
                     Edge SQLite & Workers AI Execution Stream
                   </span>
                   <button
                     type="button"
                     onClick={onClearLogs}
-                    className="text-xs text-[#0b57d0] lg:text-[#a8c7fa] hover:underline cursor-pointer"
+                    className="text-xs text-[#0b57d0] dark:text-[#a8c7fa] hover:underline cursor-pointer"
                   >
                     Clear Logs
                   </button>
                 </div>
-                <div className="rounded-2xl p-3.5 h-80 overflow-y-auto font-mono text-[11px] bg-[#f0f4f9] lg:bg-[#131314] border border-[#dfe4ea] lg:border-[#2c2d2e] space-y-1">
+                <div className="rounded-2xl p-3.5 h-80 overflow-y-auto font-mono text-[11px] bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#2c2d2e] space-y-1">
                   {logs.length === 0 ? (
-                    <div className="text-[#5f6368] lg:text-[#9aa0a6]">Waiting for events...</div>
+                    <div className="text-[#5f6368] dark:text-[#9aa0a6]">Waiting for events...</div>
                   ) : (
                     logs.map((l, idx) => (
                       <div
@@ -711,8 +638,8 @@ export default function VendorDashboard({
                           l.includes("[ERROR]")
                             ? "text-rose-500"
                             : l.includes("[AI_FIRST_TOKEN]") || l.includes("[COMPLETE]")
-                            ? "text-emerald-600 lg:text-emerald-400"
-                            : "text-[#1f1f1f] lg:text-[#c4c7c5]"
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-[#1f1f1f] dark:text-[#c4c7c5]"
                         }
                       >
                         {l}

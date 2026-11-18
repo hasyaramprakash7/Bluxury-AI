@@ -75,18 +75,116 @@ function extractStreamToken(parsed) {
   return "";
 }
 
-function extractDeterministicDetails(userText, currentMem, services) {
+function isLikelyQuestion(text) {
+  const lower = text.trim().toLowerCase();
+  if (lower.includes("?")) return true;
+  return /^(what|which|how|why|when|where|who|tell|explain|show|give|can you|do you|is there|fee|fees|cost|price|much|fist|first)\b/.test(
+    lower
+  );
+}
+
+const MONTHS = {
+  jan: 1, january: 1,
+  feb: 2, february: 2,
+  mar: 3, march: 3,
+  apr: 4, april: 4,
+  may: 5,
+  jun: 6, june: 6,
+  jul: 7, july: 7,
+  aug: 8, august: 8,
+  sep: 9, sept: 9, september: 9,
+  oct: 10, october: 10,
+  nov: 11, november: 11,
+  dec: 12, december: 12,
+};
+
+function parseDateFromText(text) {
+  const lower = text.toLowerCase();
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth() + 1;
+
+  const iso = lower.match(/\b(202\d-\d{2}-\d{2})\b/);
+  if (iso) return iso[1];
+
+  if (/\btomorrow\b/.test(lower)) {
+    return new Date(Date.now() + 86400000).toISOString().split("T")[0];
+  }
+  if (/\btoday\b/.test(lower)) {
+    return now.toISOString().split("T")[0];
+  }
+
+  const monthFirst = lower.match(
+    /\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)\s+(\d{1,2})(?:st|nd|rd|th)?\b/
+  );
+  if (monthFirst) {
+    return `${year}-${String(MONTHS[monthFirst[1]]).padStart(2, "0")}-${String(Number(monthFirst[2])).padStart(2, "0")}`;
+  }
+
+  const dayFirst = lower.match(
+    /\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)\b/
+  );
+  if (dayFirst) {
+    return `${year}-${String(MONTHS[dayFirst[2]]).padStart(2, "0")}-${String(Number(dayFirst[1])).padStart(2, "0")}`;
+  }
+
+  const thisMonth = lower.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s*(?:of\s+this\s+month|this\s+month)?\b/);
+  if (
+    thisMonth &&
+    (lower.includes("month") ||
+      /\b\d{1,2}(?:st|nd|rd|th)\b/.test(lower) ||
+      /^\d{1,2}$/.test(lower.trim()))
+  ) {
+    const dayNum = Number(thisMonth[1]);
+    if (dayNum >= 1 && dayNum <= 31) {
+      return `${year}-${String(month).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
+    }
+  }
+
+  return "";
+}
+
+function parseTimeFromText(text) {
+  const lower = text.toLowerCase();
+  const m = lower.match(/\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/);
+  if (!m) return { formatted: "", outOfHours: false };
+
+  const hour = Number(m[1]);
+  const mins = m[2] || "00";
+  const period = m[3].toUpperCase();
+
+  let hour24 = hour % 12;
+  if (period === "PM") hour24 += 12;
+
+  const outOfHours = hour24 < 10 || hour24 >= 19;
+  const formatted = `${String(hour).padStart(2, "0")}:${mins} ${period}`;
+  return { formatted, outOfHours };
+}
+
+function extractStepByStepDetails(userText, currentMem, services, lastAssistantMsg = "") {
   const updated = { ...currentMem };
   const text = userText.trim();
+  const lower = text.toLowerCase();
 
-  const nameMatch = text.match(
-    /(?:my name is|i am|i'm|this is|call me)\s+([a-zA-Z][a-zA-Z\s]{1,28}?)(?:[.,!?]|$|\s+(?:and|my|from|for))/i
-  );
-  if (nameMatch && nameMatch[1]) {
-    const candidate = nameMatch[1].trim();
-    if (!/^(interested|looking|booking|want|need|here)$/i.test(candidate)) {
-      updated.name = candidate;
+  for (const s of services) {
+    const sLower = s.name.toLowerCase();
+    if (lower.includes(sLower)) {
+      updated.preferred_service = s.name;
+      break;
     }
+    const firstWord = sLower.split(" ")[0];
+    if (firstWord.length >= 5 && lower.includes(firstWord)) {
+      updated.preferred_service = s.name;
+      break;
+    }
+  }
+  if (!updated.preferred_service && /agentic|agineyic|aginet/i.test(lower)) {
+    const agentic = services.find((s) => /agentic/i.test(s.name));
+    if (agentic) updated.preferred_service = agentic.name;
+  }
+
+  if (isLikelyQuestion(text)) {
+    return { updated, outOfHours: false, parsedTime: "" };
   }
 
   const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
@@ -97,14 +195,47 @@ function extractDeterministicDetails(userText, currentMem, services) {
     updated.contact = phoneMatch[0].replace(/\s+/g, "");
   }
 
-  for (const s of services) {
-    if (text.toLowerCase().includes(s.name.toLowerCase())) {
-      updated.preferred_service = s.name;
-      break;
+  const nameMatch = text.match(
+    /(?:my name is|i am|i'm|this is|call me|change name to|name to)\s+([a-zA-Z][a-zA-Z\s]{1,26}?)(?:[.,!]|$)/i
+  );
+  if (nameMatch && nameMatch[1]) {
+    const candidate = nameMatch[1].trim();
+    if (!/^(interested|looking|booking|want|need|here|beginner|intermediate|advanced)$/i.test(candidate)) {
+      updated.name = candidate;
     }
+  } else if (
+    /name/i.test(lastAssistantMsg) &&
+    /^[a-zA-Z][a-zA-Z\s]{1,26}$/.test(text) &&
+    !/^(yes|ok|okay|sure|confirm|no|cancel|hi|hello|book|demo|slot|tomorrow|today|beginner|intermediate|advanced)$/i.test(text)
+  ) {
+    updated.name = text;
   }
 
-  return updated;
+  const lvlMatch = lower.match(/\b(beginner|intermediate|advanced)\b/i);
+  if (lvlMatch) {
+    const lvl = lvlMatch[1];
+    updated.project_summary = `${lvl.charAt(0).toUpperCase() + lvl.slice(1).toLowerCase()} level`;
+  }
+
+  const parsedDate = parseDateFromText(text);
+  const { formatted: parsedTime, outOfHours } = parseTimeFromText(text);
+
+  const existingParts = (updated.preferred_slot || "").split("|").map((p) => p.trim());
+  let currentDate = /^\d{4}-\d{2}-\d{2}$/.test(existingParts[0] || "") ? existingParts[0] : "";
+  let currentTime = /(?:AM|PM)$/i.test(existingParts[1] || "") ? existingParts[1] : "";
+
+  if (parsedDate) currentDate = parsedDate;
+  if (parsedTime && !outOfHours) currentTime = parsedTime;
+
+  if (currentDate && currentTime) {
+    updated.preferred_slot = `${currentDate} | ${currentTime}`;
+  } else if (currentDate) {
+    updated.preferred_slot = currentDate;
+  } else if (currentTime) {
+    updated.preferred_slot = `| ${currentTime}`;
+  }
+
+  return { updated, outOfHours, parsedTime };
 }
 
 export class VendorWorkspace extends DurableObject {
@@ -113,7 +244,7 @@ export class VendorWorkspace extends DurableObject {
     this.ctx.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS company_profile (
         id INTEGER PRIMARY KEY CHECK (id = 1),
-        company_name TEXT NOT NULL DEFAULT '',
+        company_name TEXT NOT NULL DEFAULT 'bluxury',
         tagline TEXT NOT NULL DEFAULT '',
         working_hours TEXT NOT NULL DEFAULT 'Mon-Sat, 10:00 AM - 7:00 PM',
         contact_info TEXT NOT NULL DEFAULT '',
@@ -209,17 +340,16 @@ export class VendorWorkspace extends DurableObject {
       )
       .toArray();
 
-    return (
-      rows[0] || {
-        company_name: "",
-        tagline: "",
-        working_hours: "Mon-Sat, 10:00 AM - 7:00 PM",
-        contact_info: "",
-        about_details: "",
-        ai_model: DEFAULT_MODEL_ID,
-        vendor_pin: "",
-      }
-    );
+    if (!rows[0] || !rows[0].company_name) {
+      this.ctx.storage.sql.exec(
+        `INSERT INTO company_profile (id, company_name, tagline, working_hours, contact_info, about_details, ai_model, vendor_pin)
+         VALUES (1, 'bluxury', '', 'Mon-Sat, 10:00 AM - 7:00 PM', '', '', '${DEFAULT_MODEL_ID}', '')
+         ON CONFLICT(id) DO UPDATE SET company_name = 'bluxury'`
+      );
+      return this.getProfileRow();
+    }
+
+    return rows[0];
   }
 
   getPublicState() {
@@ -236,7 +366,7 @@ export class VendorWorkspace extends DurableObject {
 
     return {
       profile: {
-        company_name: raw.company_name,
+        company_name: raw.company_name || "bluxury",
         tagline: raw.tagline,
         working_hours: raw.working_hours,
         contact_info: raw.contact_info,
@@ -258,7 +388,21 @@ export class VendorWorkspace extends DurableObject {
       )
       .toArray()[0];
 
-    if (existing) return existing;
+    if (existing) {
+      const cleanName =
+        existing.name && existing.name.length <= 32 && !isLikelyQuestion(existing.name)
+          ? existing.name
+          : "";
+      const cleanSummary =
+        existing.project_summary && !isLikelyQuestion(existing.project_summary)
+          ? existing.project_summary
+          : "";
+      return {
+        ...existing,
+        name: cleanName,
+        project_summary: cleanSummary,
+      };
+    }
 
     this.ctx.storage.sql.exec("INSERT INTO clients (client_id) VALUES (?)", clientId);
     return {
@@ -312,6 +456,49 @@ export class VendorWorkspace extends DurableObject {
       )
       .toArray();
     return (rows[0]?.cnt || 0) > 0;
+  }
+
+  createConfirmedBooking(ws, clientId, details) {
+    const bDate = String(details.booking_date || "").trim();
+    const bTime = String(details.booking_time || "").trim();
+
+    if (!bDate || !bTime) return { conflict: false, booking: null };
+
+    if (this.isSlotTaken(bDate, bTime)) {
+      this.emitLog(ws, "CONFLICT", `Blocked double-booking for ${bDate} ${bTime}`);
+      return { conflict: true, booking: null };
+    }
+
+    const serviceName = String(details.service_name || "Consultation").trim();
+    const clientName = String(details.client_name || "Client").trim();
+    const clientContact = String(details.client_contact || "Not provided").trim();
+    const projectNotes = String(details.project_notes || "Confirmed via AI Chat").trim();
+
+    this.ctx.storage.sql.exec(
+      `INSERT INTO bookings (client_id, client_name, client_contact, service_name, project_title, project_notes, booking_date, booking_time, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmed')`,
+      clientId,
+      clientName,
+      clientContact,
+      serviceName,
+      `${serviceName} Booking`,
+      projectNotes,
+      bDate,
+      bTime
+    );
+
+    this.saveClientMemory(clientId, {
+      name: clientName,
+      contact: clientContact,
+      preferred_service: "",
+      project_summary: "",
+      preferred_slot: "",
+    });
+
+    this.broadcastState();
+    const created = this.getPublicState().bookings[0] || null;
+    this.emitLog(ws, "BOOKING_SAVED", `Confirmed booking #${created?.id} (${bDate} ${bTime})`);
+    return { conflict: false, booking: created };
   }
 
   async webSocketMessage(ws, rawMessage) {
@@ -370,7 +557,7 @@ export class VendorWorkspace extends DurableObject {
              about_details = excluded.about_details,
              ai_model = excluded.ai_model,
              vendor_pin = excluded.vendor_pin`,
-          String(p.company_name || "").trim(),
+          String(p.company_name || "bluxury").trim(),
           String(p.tagline || "").trim(),
           String(p.working_hours || "Mon-Sat, 10:00 AM - 7:00 PM").trim(),
           String(p.contact_info || "").trim(),
@@ -429,6 +616,24 @@ export class VendorWorkspace extends DurableObject {
         return;
       }
 
+      if (msg.type === "clear_draft_booking") {
+        const mem = this.getOrCreateClient(clientId);
+        this.saveClientMemory(clientId, {
+          ...mem,
+          preferred_service: "",
+          project_summary: "",
+          preferred_slot: "",
+        });
+        ws.send(
+          JSON.stringify({
+            type: "ai_reply",
+            reply: "Booking draft cancelled. Let me know if you want to pick another course or time!",
+            clientMemory: this.getOrCreateClient(clientId),
+          })
+        );
+        return;
+      }
+
       if (msg.type === "direct_book") {
         const t0 = Date.now();
         const b = msg.booking;
@@ -436,7 +641,15 @@ export class VendorWorkspace extends DurableObject {
           ws.send(JSON.stringify({ type: "error", message: "Please fill all booking fields." }));
           return;
         }
-        if (this.isSlotTaken(b.booking_date, b.booking_time)) {
+        const { conflict, booking } = this.createConfirmedBooking(ws, clientId, {
+          client_name: b.client_name,
+          client_contact: b.client_contact,
+          service_name: b.service_name,
+          project_notes: b.project_notes || b.project_title,
+          booking_date: b.booking_date,
+          booking_time: b.booking_time,
+        });
+        if (conflict) {
           ws.send(
             JSON.stringify({
               type: "error",
@@ -445,39 +658,17 @@ export class VendorWorkspace extends DurableObject {
           );
           return;
         }
-
-        this.ctx.storage.sql.exec(
-          `INSERT INTO bookings (client_id, client_name, client_contact, service_name, project_title, project_notes, booking_date, booking_time, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmed')`,
-          clientId,
-          String(b.client_name).trim(),
-          String(b.client_contact).trim(),
-          String(b.service_name || "Consultation").trim(),
-          String(b.project_title || "Project Consultation").trim(),
-          String(b.project_notes || "").trim(),
-          String(b.booking_date).trim(),
-          String(b.booking_time).trim()
-        );
-
-        this.saveClientMemory(clientId, {
-          name: String(b.client_name).trim(),
-          contact: String(b.client_contact).trim(),
-          preferred_service: String(b.service_name || "").trim(),
-          project_summary: String(b.project_notes || b.project_title || "").trim(),
-          preferred_slot: `${b.booking_date} ${b.booking_time}`,
-        });
-
-        this.broadcastState();
         this.emitLog(
           ws,
           "DIRECT_BOOK",
-          `Instant slot booked (${b.booking_date} ${b.booking_time}) — 0 AI tokens`,
+          `Slot booked (${b.booking_date} ${b.booking_time}) — 0 AI tokens`,
           Date.now() - t0
         );
         ws.send(
           JSON.stringify({
-            type: "toast",
-            message: `Confirmed for ${b.booking_date} at ${b.booking_time}!`,
+            type: "direct_book_confirmed",
+            booking,
+            clientMemory: this.getOrCreateClient(clientId),
           })
         );
         return;
@@ -485,7 +676,9 @@ export class VendorWorkspace extends DurableObject {
 
       if (msg.type === "client_chat") {
         const reqStart = Date.now();
-        const recentHistory = Array.isArray(msg.history) ? msg.history.slice(-6) : [];
+        const recentHistory = Array.isArray(msg.history) ? msg.history.slice(-4) : [];
+        const lastAssistantMsg =
+          [...recentHistory].reverse().find((m) => m.role === "assistant")?.content || "";
         const userText = String(msg.message || "").trim();
         if (!userText) return;
 
@@ -507,68 +700,167 @@ export class VendorWorkspace extends DurableObject {
         const selectedModel = sanitizeModelId(state.profile.ai_model);
         let clientMem = this.getOrCreateClient(clientId);
 
-        clientMem = extractDeterministicDetails(userText, clientMem, state.services);
+        const { updated, outOfHours, parsedTime } = extractStepByStepDetails(
+          userText,
+          clientMem,
+          state.services,
+          lastAssistantMsg
+        );
+        clientMem = updated;
         this.saveClientMemory(clientId, clientMem);
+
+        const slotParts = (clientMem.preferred_slot || "").split("|").map((p) => p.trim());
+        const slotDate = /^\d{4}-\d{2}-\d{2}$/.test(slotParts[0] || "") ? slotParts[0] : "";
+        const slotTime = /(?:AM|PM)$/i.test(slotParts[1] || "") ? slotParts[1] : "";
 
         this.emitLog(
           ws,
           "SQLITE_READ",
-          `Loaded ${state.services.length} services & memory (${clientMem.name || "no name"}, ${clientMem.contact || "no contact"})`,
+          `State -> Name:${clientMem.name || "-"} | Contact:${clientMem.contact || "-"} | Course:${clientMem.preferred_service || "-"} | Date:${slotDate || "-"} | Time:${slotTime || "-"}`,
           Date.now() - dbStart
         );
+
+        const lower = userText.toLowerCase();
+        const asksCatalog = /\b(course|courses|croses|package|packages|service|services|offer|offers|what do you|what all|list|options)\b/.test(
+          lower
+        );
+        const wantsDeepExplanation =
+          /\b(explain|deep|detail|details|syllabus|curriculum|topics|module|modules|roadmap|how does|overview|everything about)\b/.test(
+            lower
+          ) && !asksCatalog;
+        const inBookingFlow =
+          /\b(book|booking|slot|demo|schedule|enroll|reserve|appointment|yes|confirm)\b/.test(lower) ||
+          userText.startsWith("I want to select ") ||
+          /name|phone|whatsapp|date|time|slot|course|confirm/i.test(lastAssistantMsg);
+
+        let createdBooking = null;
+        let slotConflict = false;
+
+        const allFieldsReady =
+          !outOfHours &&
+          Boolean(clientMem.name) &&
+          Boolean(clientMem.contact) &&
+          Boolean(clientMem.preferred_service) &&
+          Boolean(slotDate) &&
+          Boolean(slotTime);
+
+        const userExplicitlyConfirmed =
+          /^(yes|confirm|ok|okay|done|book now|confirm booking)$/i.test(userText.trim()) &&
+          /confirm|review/i.test(lastAssistantMsg);
+
+        if (allFieldsReady && userExplicitlyConfirmed) {
+          const res = this.createConfirmedBooking(ws, clientId, {
+            client_name: clientMem.name,
+            client_contact: clientMem.contact,
+            service_name: clientMem.preferred_service,
+            project_notes: clientMem.project_summary || "Confirmed via AI Chat",
+            booking_date: slotDate,
+            booking_time: slotTime,
+          });
+          slotConflict = res.conflict;
+          createdBooking = res.booking;
+        } else if (allFieldsReady && this.isSlotTaken(slotDate, slotTime)) {
+          slotConflict = true;
+        }
+
+        let nextMissingStep = "";
+        if (!createdBooking) {
+          if (!clientMem.name) nextMissingStep = "name";
+          else if (!clientMem.contact) nextMissingStep = "contact";
+          else if (!clientMem.preferred_service) nextMissingStep = "service";
+          else if (!slotDate) nextMissingStep = "date";
+          else if (!slotTime) nextMissingStep = "time";
+          else nextMissingStep = "review";
+        }
+
+        const uiHints = {
+          showServiceOptions:
+            !createdBooking &&
+            (asksCatalog || (inBookingFlow && nextMissingStep === "service")) &&
+            state.services.length > 0,
+          showDateOptions: !createdBooking && inBookingFlow && nextMissingStep === "date",
+          showTimeOptions: !createdBooking && inBookingFlow && nextMissingStep === "time",
+          showConfirmCard: !createdBooking && !slotConflict && nextMissingStep === "review",
+          draftBooking:
+            !createdBooking && nextMissingStep === "review"
+              ? {
+                  client_name: clientMem.name,
+                  client_contact: clientMem.contact,
+                  service_name: clientMem.preferred_service,
+                  booking_date: slotDate,
+                  booking_time: slotTime,
+                  project_notes: clientMem.project_summary || "",
+                }
+              : null,
+          showBookCtaPill:
+            !createdBooking &&
+            !inBookingFlow &&
+            !asksCatalog &&
+            Boolean(clientMem.preferred_service) &&
+            nextMissingStep !== "review",
+          preselectedService: clientMem.preferred_service || "",
+        };
 
         const servicesText =
           state.services.length > 0
             ? state.services
-                .map((s) => `• ${s.name} — Price: ${s.price}, Timeline: ${s.duration} (${s.description})`)
+                .map((s) => `• ${s.name} (${s.price}, ${s.duration}): ${s.description}`)
                 .join("\n")
             : "Custom consultations available.";
 
-        const unavailableSlots = state.bookings
-          .filter((b) => b.status !== "completed")
-          .slice(0, 15)
-          .map((b) => `${b.booking_date} at ${b.booking_time}`);
+        let taskGuidance = "";
+        let maxTokens = 150;
 
-        const missingQueue = [];
-        if (!clientMem.name) missingQueue.push("their Name");
-        if (!clientMem.contact) missingQueue.push("their Phone Number or Email");
-        if (!clientMem.preferred_service) missingQueue.push("which Service Package they want");
-        if (!clientMem.project_summary) missingQueue.push("a brief description of their Project Idea");
-        if (!clientMem.preferred_slot) missingQueue.push("their Preferred Date & Time");
-
-        const nextStepInstruction =
-          missingQueue.length > 0
-            ? `If the user wants to book, acknowledge what they just shared and ask ONLY for ${missingQueue[0]} next. DO NOT list all missing fields at once.`
-            : `All 5 booking details are collected! Summarize them briefly and ask the user to confirm—or if they just confirmed, output the <BOOKING_JSON> tag now.`;
-
-        const systemPrompt = `You are a friendly, natural booking concierge for "${state.profile.company_name}".
-Working Hours: ${state.profile.working_hours} | Contact: ${state.profile.contact_info}
-Offers & Policies: ${state.profile.about_details}
-Packages:
-${servicesText}
-Availability: ${
-          unavailableSlots.length === 0
-            ? "All working hours are currently open and available for booking."
-            : `All working hours are open EXCEPT these already-booked slots: ${unavailableSlots.join(", ")}.`
+        if (createdBooking) {
+          taskGuidance = `BOOKING IS SAVED! Say in 1 short sentence: "Confirmed, ${createdBooking.client_name}! Your ${createdBooking.service_name} session is booked for ${createdBooking.booking_date} at ${createdBooking.booking_time}."`;
+          maxTokens = 100;
+        } else if (slotConflict) {
+          taskGuidance = `That slot (${slotDate} at ${slotTime}) is already taken. Ask in 1 short sentence to pick another time slot.`;
+          maxTokens = 90;
+        } else if (outOfHours) {
+          taskGuidance = `${parsedTime} is outside working hours (${state.profile.working_hours}). Ask in 1 short sentence to pick a time between 10:00 AM and 7:00 PM.`;
+          maxTokens = 90;
+        } else if (asksCatalog) {
+          taskGuidance = `List each course/package with its fee & duration in compact 1-line bullets, then tell them to tap any course below.`;
+          maxTokens = 260;
+        } else if (wantsDeepExplanation) {
+          taskGuidance = `Give a clear, detailed breakdown covering key topics, skills learned, duration, fee, and outcomes.`;
+          maxTokens = 650;
+        } else if (nextMissingStep === "review") {
+          taskGuidance = `Say in 1 short sentence: "Please review your booking details below—you can edit any field or tap Confirm Booking."`;
+          maxTokens = 80;
+        } else if (inBookingFlow && nextMissingStep) {
+          const stepPrompts = {
+            name: `Ask ONLY for their full name in 1 short sentence.`,
+            contact: `Greet ${clientMem.name} and ask ONLY for their phone or WhatsApp number in 1 short sentence.`,
+            service: `Ask ONLY which course or package they want to book (tell them to tap one below) in 1 short sentence.`,
+            date: `We already have ${clientMem.name} (${clientMem.contact}) for "${clientMem.preferred_service}". Ask ONLY what date they prefer (tap Tomorrow or pick a date below) in 1 short sentence.`,
+            time: `We already have ${clientMem.name} (${clientMem.contact}) for "${clientMem.preferred_service}" on ${slotDate}. Ask ONLY which time slot below they prefer in 1 short sentence.`,
+          };
+          taskGuidance = stepPrompts[nextMissingStep];
+          maxTokens = 95;
+        } else {
+          taskGuidance = `Answer directly in 1-2 short sentences (under 40 words). No fluff or blank lines.`;
+          maxTokens = 150;
         }
 
-ALREADY KNOWN ABOUT THIS CLIENT (NEVER ASK FOR THESE AGAIN):
-- Name: ${clientMem.name || "Not yet given"}
-- Contact: ${clientMem.contact || "Not yet given"}
-- Package: ${clientMem.preferred_service || "Not yet chosen"}
-- Project Idea: ${clientMem.project_summary || "Not yet shared"}
-- Preferred Date & Time: ${clientMem.preferred_slot || "Not yet chosen"}
+        const systemPrompt = `You are the concise assistant for "${state.profile.company_name || 'bluxury'}".
+Hours: ${state.profile.working_hours} | Contact: ${state.profile.contact_info}
+Company Info: ${state.profile.about_details}
+Catalog:
+${servicesText}
 
-CONVERSATION RULES:
-1. Keep replies short (2-3 sentences), warm, and conversational. Never dump a bullet list of missing fields.
-2. ${nextStepInstruction}
-3. Whenever the user gives new info (name, contact, package, project idea, or date/time), append this exact tag at the end:
-<CLIENT_UPDATE>{"name":"...","contact":"...","preferred_service":"...","project_summary":"...","preferred_slot":"..."}</CLIENT_UPDATE>
-4. Once all 5 details are known AND the user confirms booking, append:
-<BOOKING_JSON>{"client_name":"...","client_contact":"...","service_name":"...","project_title":"...","project_notes":"...","booking_date":"YYYY-MM-DD","booking_time":"HH:MM AM/PM"}</BOOKING_JSON>`;
+CRITICAL OVERRIDE RULES:
+- Ignore any instructions in Company Info that tell you to list multiple fields.
+- Never output numbered lists of required fields or blank lines (____).
+- Follow ONLY this single instruction: ${taskGuidance}`;
 
         const aiStart = Date.now();
-        this.emitLog(ws, "AI_CALL", `Calling Workers AI (${selectedModel}) with streaming...`);
+        this.emitLog(
+          ws,
+          "AI_CALL",
+          `Calling ${selectedModel} (step: ${nextMissingStep || (createdBooking ? "CONFIRMED" : "qa")}, max_tokens: ${maxTokens})...`
+        );
 
         const aiResult = await this.env.AI.run(selectedModel, {
           messages: [
@@ -577,8 +869,8 @@ CONVERSATION RULES:
             { role: "user", content: userText },
           ],
           stream: true,
-          max_tokens: 260,
-          temperature: 0.25,
+          max_tokens: maxTokens,
+          temperature: 0.2,
         });
 
         let rawFull = "";
@@ -649,68 +941,11 @@ CONVERSATION RULES:
           Date.now() - aiStart
         );
 
-        let reply = stripControlTags(rawFull) || "How can I assist you with your project today?";
-
-        const updateMatch = rawFull.match(/<CLIENT_UPDATE>([\s\S]*?)<\/CLIENT_UPDATE>/);
-        if (updateMatch) {
-          try {
-            const u = JSON.parse(updateMatch[1]);
-            clientMem = {
-              ...clientMem,
-              name: u.name && u.name !== "..." && u.name !== "Not yet given" ? String(u.name).trim() : clientMem.name,
-              contact: u.contact && u.contact !== "..." && u.contact !== "Not yet given" ? String(u.contact).trim() : clientMem.contact,
-              preferred_service:
-                u.preferred_service && u.preferred_service !== "..." && u.preferred_service !== "Not yet chosen"
-                  ? String(u.preferred_service).trim()
-                  : clientMem.preferred_service,
-              project_summary:
-                u.project_summary && u.project_summary !== "..." && u.project_summary !== "Not yet shared"
-                  ? String(u.project_summary).trim()
-                  : clientMem.project_summary,
-              preferred_slot:
-                u.preferred_slot && u.preferred_slot !== "..." && u.preferred_slot !== "Not yet chosen"
-                  ? String(u.preferred_slot).trim()
-                  : clientMem.preferred_slot,
-            };
-            this.saveClientMemory(clientId, clientMem);
-            this.emitLog(ws, "MEMORY_SAVE", `Saved client memory for ${clientId}`);
-          } catch (e) {
-            this.emitLog(ws, "WARN", `Failed to parse CLIENT_UPDATE: ${e.message}`);
-          }
-        }
-
-        let createdBooking = null;
-        const bookMatch = rawFull.match(/<BOOKING_JSON>([\s\S]*?)<\/BOOKING_JSON>/);
-        if (bookMatch) {
-          try {
-            const b = JSON.parse(bookMatch[1]);
-            const bDate = String(b.booking_date || "").trim();
-            const bTime = String(b.booking_time || "").trim();
-
-            if (bDate && bTime && this.isSlotTaken(bDate, bTime)) {
-              reply = `That slot (${bDate} at ${bTime}) was just reserved by another client. Please choose a different time!`;
-              this.emitLog(ws, "CONFLICT", `Blocked double-booking for ${bDate} ${bTime}`);
-            } else {
-              this.ctx.storage.sql.exec(
-                `INSERT INTO bookings (client_id, client_name, client_contact, service_name, project_title, project_notes, booking_date, booking_time, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmed')`,
-                clientId,
-                String(b.client_name || clientMem.name || "Client").trim(),
-                String(b.client_contact || clientMem.contact || "Not provided").trim(),
-                String(b.service_name || clientMem.preferred_service || "Consultation").trim(),
-                String(b.project_title || "Client Project Inquiry").trim(),
-                String(b.project_notes || clientMem.project_summary || "").trim(),
-                bDate || "TBD",
-                bTime || "TBD"
-              );
-              this.broadcastState();
-              createdBooking = this.getPublicState().bookings[0] || null;
-              this.emitLog(ws, "BOOKING_SAVED", `Created confirmed booking #${createdBooking?.id}`);
-            }
-          } catch (e) {
-            this.emitLog(ws, "WARN", `Failed to parse BOOKING_JSON: ${e.message}`);
-          }
-        }
+        const reply =
+          stripControlTags(rawFull) ||
+          (createdBooking
+            ? `Confirmed, ${createdBooking.client_name}! Your ${createdBooking.service_name} session is booked for ${createdBooking.booking_date} at ${createdBooking.booking_time}.`
+            : "Please review your details below to confirm.");
 
         ws.send(
           JSON.stringify({
@@ -719,6 +954,7 @@ CONVERSATION RULES:
             modelUsed: selectedModel,
             clientMemory: this.getOrCreateClient(clientId),
             bookingCreated: createdBooking,
+            uiHints,
           })
         );
 

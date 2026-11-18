@@ -4,7 +4,7 @@ import ClientDashboard from "./components/ClientDashboard.jsx";
 
 const EMPTY_STATE = {
   profile: {
-    company_name: "",
+    company_name: "bluxury",
     tagline: "",
     working_hours: "Mon-Sat, 10:00 AM - 7:00 PM",
     contact_info: "",
@@ -29,11 +29,11 @@ function getPersistentClientId() {
 
 function slugifyCompany(name) {
   return (
-    String(name || "")
+    String(name || "bluxury")
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9-_]+/g, "-")
-      .replace(/^-+|-+$/g, "") || ""
+      .replace(/^-+|-+$/g, "") || "bluxury"
   );
 }
 
@@ -55,7 +55,7 @@ function parseRouteFromUrl() {
   }
   return {
     dashboard: "vendor",
-    vendorId: "",
+    vendorId: "bluxury",
     clientOnlyMode: false,
   };
 }
@@ -67,8 +67,12 @@ export default function App() {
   const [vendorId, setVendorId] = useState(initialRoute.vendorId);
   const [clientOnlyMode, setClientOnlyMode] = useState(initialRoute.clientOnlyMode);
 
+  const [darkMode, setDarkMode] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 1024 : true
+  );
+
   const [vendorPin, setVendorPin] = useState("");
-  const [pinVerified, setPinVerified] = useState(false);
+  const [pinVerified, setPinVerified] = useState(true);
   const [connected, setConnected] = useState(false);
   const [pendingAuth, setPendingAuth] = useState(null);
 
@@ -93,16 +97,6 @@ export default function App() {
 
   const navigateTo = (nextDashboard, nextVendorId, lockClientMode = false) => {
     const cleanVendor = slugifyCompany(nextVendorId);
-    if (!cleanVendor) {
-      window.history.pushState({}, "", "/");
-      setVendorId("");
-      setPinVerified(false);
-      setVendorPin("");
-      setActiveDashboard("vendor");
-      setClientOnlyMode(false);
-      return;
-    }
-
     const nextPath = `/${nextDashboard}/${encodeURIComponent(cleanVendor)}`;
     if (window.location.pathname !== nextPath) {
       window.history.pushState({}, "", nextPath);
@@ -111,7 +105,7 @@ export default function App() {
     if (cleanVendor !== vendorId) {
       setChatHistory([]);
       setVendorPin("");
-      setPinVerified(false);
+      setPinVerified(true);
       setVendorId(cleanVendor);
     }
     setActiveDashboard(nextDashboard);
@@ -119,6 +113,10 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (window.location.pathname === "/") {
+      window.history.replaceState({}, "", `/vendor/bluxury`);
+    }
+
     const handlePopState = () => {
       const route = parseRouteFromUrl();
       setActiveDashboard(route.dashboard);
@@ -126,7 +124,7 @@ export default function App() {
       if (route.vendorId !== vendorId) {
         setChatHistory([]);
         setVendorPin("");
-        setPinVerified(false);
+        setPinVerified(true);
         setVendorId(route.vendorId);
       }
     };
@@ -179,9 +177,6 @@ export default function App() {
       } else if (msg.type === "sync_state") {
         setWorkspace(msg.state);
         if (msg.clientMemory) setClientMemory(msg.clientMemory);
-        if (!msg.state.profile.has_pin && vendorPin) {
-          setPinVerified(true);
-        }
       } else if (msg.type === "pin_result") {
         setPinVerified(Boolean(msg.verified));
         if (msg.verified) {
@@ -206,15 +201,35 @@ export default function App() {
           const updated = [...prev];
           const last = updated[updated.length - 1];
           if (last && last.role === "assistant") {
-            updated[updated.length - 1] = { ...last, content: msg.reply };
+            updated[updated.length - 1] = {
+              ...last,
+              content: msg.reply,
+              uiHints: msg.uiHints || null,
+              bookingCreated: msg.bookingCreated || null,
+            };
           }
           return updated;
         });
         if (msg.clientMemory) setClientMemory(msg.clientMemory);
         if (msg.bookingCreated) {
           showToast(
-            `Confirmed: ${msg.bookingCreated.booking_date} at ${msg.bookingCreated.booking_time}`
+            `Booked: ${msg.bookingCreated.booking_date} at ${msg.bookingCreated.booking_time}`
           );
+        }
+      } else if (msg.type === "direct_book_confirmed") {
+        if (msg.clientMemory) setClientMemory(msg.clientMemory);
+        if (msg.booking) {
+          showToast(
+            `Confirmed: ${msg.booking.booking_date} at ${msg.booking.booking_time}`
+          );
+          setChatHistory((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: `Your booking is confirmed, ${msg.booking.client_name}! We have reserved **${msg.booking.service_name}** on **${msg.booking.booking_date}** at **${msg.booking.booking_time}**.`,
+              bookingCreated: msg.booking,
+            },
+          ]);
         }
       } else if (msg.type === "ai_reply") {
         setIsThinking(false);
@@ -238,49 +253,46 @@ export default function App() {
   };
 
   const handleVendorAuth = (companyNameInput, passwordInput) => {
-    const cleanId = slugifyCompany(companyNameInput);
+    const cleanId = slugifyCompany(companyNameInput || "bluxury");
     const cleanPin = String(passwordInput || "").trim();
-    if (!cleanId || !cleanPin) {
-      showToast("Please enter both Company Name and Password.");
-      return;
-    }
 
     setVendorPin(cleanPin);
 
     if (cleanId === vendorId && wsRef.current?.readyState === WebSocket.OPEN) {
       sendSocket({
         type: "verify_pin",
-        companyName: companyNameInput.trim(),
+        companyName: companyNameInput.trim() || "bluxury",
         pin: cleanPin,
       });
     } else {
       setPendingAuth({
         vendorId: cleanId,
-        companyName: companyNameInput.trim(),
+        companyName: companyNameInput.trim() || "bluxury",
         pin: cleanPin,
       });
       const nextPath = `/vendor/${encodeURIComponent(cleanId)}`;
       window.history.pushState({}, "", nextPath);
       setChatHistory([]);
-      setPinVerified(false);
+      setPinVerified(true);
       setVendorId(cleanId);
     }
   };
 
   const handleLogoutVendor = () => {
-    setPinVerified(false);
+    setPinVerified(true);
     setVendorPin("");
-    navigateTo("vendor", "", false);
+    navigateTo("vendor", "bluxury", false);
   };
 
   const handleClientSend = (text) => {
     if (!text.trim() || isThinking) return;
+    const cleanHistory = chatHistory.map(({ role, content }) => ({ role, content }));
     setChatHistory((prev) => [...prev, { role: "user", content: text }]);
     setIsThinking(true);
     sendSocket({
       type: "client_chat",
       message: text,
-      history: chatHistory,
+      history: cleanHistory,
     });
   };
 
@@ -291,34 +303,28 @@ export default function App() {
   };
 
   return (
-    <div className="h-[100dvh] w-full overflow-hidden relative">
+    <div className={`${darkMode ? "dark" : ""} h-[100dvh] w-full overflow-hidden relative`}>
       {toast && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-[#0b57d0] lg:bg-[#a8c7fa] text-white lg:text-[#041e49] text-xs font-medium px-4 py-2 rounded-full shadow-lg">
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-[#0b57d0] dark:bg-[#a8c7fa] text-white dark:text-[#041e49] text-xs font-medium px-4 py-2 rounded-full shadow-lg">
           {toast}
         </div>
       )}
 
       {activeDashboard === "client" ? (
-        <>
-          {!clientOnlyMode && (
-            <button
-              type="button"
-              onClick={() => navigateTo("vendor", vendorId, false)}
-              className="fixed bottom-20 right-4 z-30 px-3 py-1.5 rounded-full text-xs font-medium bg-white/95 lg:bg-[#1e1f20]/95 text-[#1f1f1f] lg:text-[#e3e3e3] border border-[#dfe4ea] lg:border-[#3c4043] shadow-lg hover:opacity-90 transition cursor-pointer"
-            >
-              ← Vendor Admin
-            </button>
-          )}
-          <ClientDashboard
-            workspace={workspace}
-            clientMemory={clientMemory}
-            messages={chatHistory}
-            isThinking={isThinking}
-            onSendMessage={handleClientSend}
-            onDirectBook={(booking) => sendSocket({ type: "direct_book", booking })}
-            onClearChat={() => setChatHistory([])}
-          />
-        </>
+        <ClientDashboard
+          workspace={workspace}
+          clientMemory={clientMemory}
+          messages={chatHistory}
+          isThinking={isThinking}
+          darkMode={darkMode}
+          onToggleTheme={() => setDarkMode((prev) => !prev)}
+          showModeToggle={!clientOnlyMode}
+          onSwitchToVendor={() => navigateTo("vendor", vendorId, false)}
+          onSendMessage={handleClientSend}
+          onDirectBook={(booking) => sendSocket({ type: "direct_book", booking })}
+          onCancelDraft={() => sendSocket({ type: "clear_draft_booking" })}
+          onClearChat={() => setChatHistory([])}
+        />
       ) : (
         <VendorDashboard
           workspace={workspace}
@@ -327,6 +333,8 @@ export default function App() {
           logs={logs}
           pin={vendorPin}
           pinVerified={pinVerified}
+          darkMode={darkMode}
+          onToggleTheme={() => setDarkMode((prev) => !prev)}
           onPinChange={setVendorPin}
           onVendorAuth={handleVendorAuth}
           onLogoutVendor={handleLogoutVendor}
