@@ -1,0 +1,27 @@
+{
+  "name": "vendor-client-ai-booking",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "ai": {
+    "binding": "AI"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "VENDOR_WORKSPACE",
+        "class_name": "VendorWorkspace"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["VendorWorkspace"]
+    }
+  ]
+}
