@@ -4,7 +4,7 @@ import ClientDashboard from "./components/ClientDashboard.jsx";
 
 const EMPTY_STATE = {
   profile: {
-    company_name: "bluxury",
+    company_name: "",
     tagline: "",
     working_hours: "Mon-Sat, 10:00 AM - 7:00 PM",
     contact_info: "",
@@ -29,11 +29,11 @@ function getPersistentClientId() {
 
 function slugifyCompany(name) {
   return (
-    String(name || "bluxury")
+    String(name || "")
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9-_]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "bluxury"
+      .replace(/^-+|-+$/g, "") || ""
   );
 }
 
@@ -55,7 +55,7 @@ function parseRouteFromUrl() {
   }
   return {
     dashboard: "vendor",
-    vendorId: "bluxury",
+    vendorId: "",
     clientOnlyMode: false,
   };
 }
@@ -72,7 +72,7 @@ export default function App() {
   );
 
   const [vendorPin, setVendorPin] = useState("");
-  const [pinVerified, setPinVerified] = useState(true);
+  const [pinVerified, setPinVerified] = useState(false);
   const [connected, setConnected] = useState(false);
   const [pendingAuth, setPendingAuth] = useState(null);
 
@@ -97,6 +97,16 @@ export default function App() {
 
   const navigateTo = (nextDashboard, nextVendorId, lockClientMode = false) => {
     const cleanVendor = slugifyCompany(nextVendorId);
+    if (!cleanVendor) {
+      window.history.pushState({}, "", "/");
+      setVendorId("");
+      setPinVerified(false);
+      setVendorPin("");
+      setActiveDashboard("vendor");
+      setClientOnlyMode(false);
+      return;
+    }
+
     const nextPath = `/${nextDashboard}/${encodeURIComponent(cleanVendor)}`;
     if (window.location.pathname !== nextPath) {
       window.history.pushState({}, "", nextPath);
@@ -105,7 +115,7 @@ export default function App() {
     if (cleanVendor !== vendorId) {
       setChatHistory([]);
       setVendorPin("");
-      setPinVerified(true);
+      setPinVerified(false);
       setVendorId(cleanVendor);
     }
     setActiveDashboard(nextDashboard);
@@ -113,10 +123,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (window.location.pathname === "/") {
-      window.history.replaceState({}, "", `/vendor/bluxury`);
-    }
-
     const handlePopState = () => {
       const route = parseRouteFromUrl();
       setActiveDashboard(route.dashboard);
@@ -124,7 +130,7 @@ export default function App() {
       if (route.vendorId !== vendorId) {
         setChatHistory([]);
         setVendorPin("");
-        setPinVerified(true);
+        setPinVerified(false);
         setVendorId(route.vendorId);
       }
     };
@@ -137,6 +143,7 @@ export default function App() {
     if (!vendorId) {
       setConnected(false);
       setWorkspace(EMPTY_STATE);
+      setPinVerified(false);
       return;
     }
 
@@ -160,6 +167,14 @@ export default function App() {
           })
         );
         setPendingAuth(null);
+      } else {
+        ws.send(
+          JSON.stringify({
+            type: "verify_pin",
+            companyName: vendorId,
+            pin: "",
+          })
+        );
       }
     };
 
@@ -182,7 +197,7 @@ export default function App() {
         if (msg.verified) {
           if (msg.created) showToast(`Created & locked workspace "${vendorId}"!`);
         } else {
-          showToast("Incorrect password for this company.");
+          setPinVerified(false);
         }
       } else if (msg.type === "ai_stream_start") {
         setChatHistory((prev) => [...prev, { role: "assistant", content: "" }]);
@@ -253,35 +268,39 @@ export default function App() {
   };
 
   const handleVendorAuth = (companyNameInput, passwordInput) => {
-    const cleanId = slugifyCompany(companyNameInput || "bluxury");
+    const cleanId = slugifyCompany(companyNameInput);
     const cleanPin = String(passwordInput || "").trim();
+    if (!cleanId || !cleanPin) {
+      showToast("Please enter both Company Name and Password.");
+      return;
+    }
 
     setVendorPin(cleanPin);
 
     if (cleanId === vendorId && wsRef.current?.readyState === WebSocket.OPEN) {
       sendSocket({
         type: "verify_pin",
-        companyName: companyNameInput.trim() || "bluxury",
+        companyName: companyNameInput.trim(),
         pin: cleanPin,
       });
     } else {
       setPendingAuth({
         vendorId: cleanId,
-        companyName: companyNameInput.trim() || "bluxury",
+        companyName: companyNameInput.trim(),
         pin: cleanPin,
       });
       const nextPath = `/vendor/${encodeURIComponent(cleanId)}`;
       window.history.pushState({}, "", nextPath);
       setChatHistory([]);
-      setPinVerified(true);
+      setPinVerified(false);
       setVendorId(cleanId);
     }
   };
 
   const handleLogoutVendor = () => {
-    setPinVerified(true);
+    setPinVerified(false);
     setVendorPin("");
-    navigateTo("vendor", "bluxury", false);
+    navigateTo("vendor", "", false);
   };
 
   const handleClientSend = (text) => {

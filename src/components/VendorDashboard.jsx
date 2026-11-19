@@ -42,7 +42,7 @@ export default function VendorDashboard({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("bookings");
   const [companyLoginInput, setCompanyLoginInput] = useState(
-    workspace.profile.company_name || vendorId || "bluxury"
+    workspace.profile.company_name || vendorId || ""
   );
 
   const [profile, setProfile] = useState(workspace.profile);
@@ -95,6 +95,77 @@ export default function VendorDashboard({
     setActiveTab(tab);
     setDrawerOpen(false);
   };
+
+  if (!vendorId || !pinVerified) {
+    return (
+      <div className="h-[100dvh] w-full flex items-center justify-center p-4 bg-gradient-to-b from-[#f8fafd] via-[#f3f7fe] to-[#e4effd] dark:bg-none dark:bg-[#131314] text-[#1f1f1f] dark:text-[#e3e3e3]">
+        <button
+          type="button"
+          onClick={onToggleTheme}
+          title="Toggle Theme"
+          className="fixed top-4 right-4 p-2.5 rounded-full bg-white/90 dark:bg-[#1e1f20] border border-[#dfe4ea] dark:border-[#3c4043] shadow-xs cursor-pointer"
+        >
+          {darkMode ? "☀️" : "🌙"}
+        </button>
+
+        <div className="w-full max-w-md rounded-3xl p-6 sm:p-8 bg-white dark:bg-[#1e1f20] border border-[#dfe4ea] dark:border-[#282a2c] shadow-xl space-y-5">
+          <div className="flex flex-col items-center text-center space-y-2">
+            <GeminiSparkle className="w-10 h-10" />
+            <h2 className="text-xl sm:text-2xl font-normal tracking-tight">
+              Vendor Workspace Access
+            </h2>
+            <p className="text-xs text-[#5f6368] dark:text-[#9aa0a6]">
+              Enter your <strong>Company Name</strong> and <strong>Password</strong> to open or
+              create your vendor dashboard.
+            </p>
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              onVendorAuth(companyLoginInput, pin);
+            }}
+            className="space-y-3.5"
+          >
+            <div>
+              <label className="block text-xs text-[#5f6368] dark:text-[#9aa0a6] mb-1">
+                Company Name / Vendor ID
+              </label>
+              <input
+                type="text"
+                required
+                value={companyLoginInput}
+                onChange={(e) => setCompanyLoginInput(e.target.value)}
+                placeholder="e.g., ProNexa or bluxury"
+                className="w-full rounded-2xl px-4 py-3 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none focus:border-[#0b57d0] dark:focus:border-[#a8c7fa]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs text-[#5f6368] dark:text-[#9aa0a6] mb-1">
+                Vendor Password
+              </label>
+              <input
+                type="password"
+                required
+                value={pin}
+                onChange={(e) => onPinChange(e.target.value)}
+                placeholder="Enter workspace password"
+                className="w-full rounded-2xl px-4 py-3 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none focus:border-[#0b57d0] dark:focus:border-[#a8c7fa]"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3 rounded-full bg-[#0b57d0] text-white dark:bg-[#a8c7fa] dark:text-[#041e49] text-sm font-medium transition cursor-pointer"
+            >
+              Enter Vendor Dashboard
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   const renderSidebarBody = () => (
     <div className="flex flex-col h-full bg-[#f0f4f9] dark:bg-[#1e1f20] text-[#1f1f1f] dark:text-[#e3e3e3] select-none">
@@ -218,12 +289,20 @@ export default function VendorDashboard({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
           </svg>
         </button>
+
+        <button
+          type="button"
+          onClick={onLogoutVendor}
+          className="w-full flex items-center justify-center gap-2 px-3.5 py-2 rounded-full bg-black/5 hover:bg-black/10 dark:bg-[#282a2c] dark:hover:bg-[#333537] text-xs font-medium transition cursor-pointer"
+        >
+          <span>Switch Company / Lock</span>
+        </button>
       </div>
 
       <div className="px-4 py-3 border-t border-black/10 dark:border-[#2c2d2e] flex items-center justify-between">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="h-7 w-7 rounded-full bg-gradient-to-tr from-[#4285F4] via-[#9B72CB] to-[#D96570] text-white flex items-center justify-center text-xs font-semibold shrink-0">
-            {(workspace.profile.company_name || vendorId || "B")[0].toUpperCase()}
+            {(workspace.profile.company_name || vendorId || "V")[0].toUpperCase()}
           </div>
           <div className="truncate">
             <p className="text-xs font-medium truncate">
@@ -293,6 +372,7 @@ export default function VendorDashboard({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Vendor / Client Toggle Switch */}
             <div className="flex items-center p-0.5 rounded-full bg-white/90 dark:bg-[#1e1f20] border border-[#dfe4ea] dark:border-[#3c4043]">
               <button
                 type="button"
@@ -309,6 +389,7 @@ export default function VendorDashboard({
               </button>
             </div>
 
+            {/* Dark / Light Theme Toggle Button */}
             <button
               type="button"
               onClick={onToggleTheme}
@@ -316,6 +397,15 @@ export default function VendorDashboard({
               className="p-2 rounded-full bg-white/90 dark:bg-[#1e1f20] border border-[#dfe4ea] dark:border-[#3c4043] hover:opacity-80 transition cursor-pointer text-xs"
             >
               {darkMode ? "☀️" : "🌙"}
+            </button>
+
+            <button
+              type="button"
+              onClick={onLogoutVendor}
+              title="Lock / Switch Company"
+              className="hidden sm:inline-flex px-3 py-1.5 rounded-full text-xs font-medium bg-white/90 hover:bg-white dark:bg-[#1e1f20] dark:hover:bg-[#282a2c] border border-[#dfe4ea] dark:border-[#3c4043] transition cursor-pointer"
+            >
+              Lock
             </button>
           </div>
         </header>
@@ -333,7 +423,7 @@ export default function VendorDashboard({
                     {activeTab === "logs" && "Real-Time AI Latency Logs"}
                   </h2>
                   <p className="text-xs text-[#5f6368] dark:text-[#9aa0a6]">
-                    Client URL: /client/{vendorId} • Active Workspace
+                    Client URL: /client/{vendorId} • Password Protected
                   </p>
                 </div>
               </div>
@@ -463,7 +553,7 @@ export default function VendorDashboard({
                       required
                       value={profile.company_name}
                       onChange={(e) => setProfile({ ...profile, company_name: e.target.value })}
-                      placeholder="bluxury"
+                      placeholder="e.g., ProNexa"
                       className="w-full rounded-2xl px-3.5 py-2.5 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none"
                     />
                   </div>
@@ -490,7 +580,7 @@ export default function VendorDashboard({
                       type="text"
                       value={profile.tagline}
                       onChange={(e) => setProfile({ ...profile, tagline: e.target.value })}
-                      placeholder="Luxury Ecosystem & AI Solutions"
+                      placeholder="Learn AI. Build Skills. Get Placed."
                       className="w-full rounded-2xl px-3.5 py-2.5 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none"
                     />
                   </div>
@@ -518,6 +608,19 @@ export default function VendorDashboard({
                     onChange={(e) => setProfile({ ...profile, about_details: e.target.value })}
                     placeholder="Enter policies, placement stats, or offers that the AI should share with clients..."
                     className="w-full rounded-2xl p-3.5 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-[#5f6368] dark:text-[#9aa0a6] mb-1">
+                    Change Vendor Password (optional)
+                  </label>
+                  <input
+                    type="password"
+                    value={newPin}
+                    onChange={(e) => setNewPin(e.target.value)}
+                    placeholder="Leave blank to keep current password"
+                    className="w-full rounded-2xl px-3.5 py-2.5 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none"
                   />
                 </div>
 
@@ -550,14 +653,14 @@ export default function VendorDashboard({
                       type="text"
                       value={servicePrice}
                       onChange={(e) => setServicePrice(e.target.value)}
-                      placeholder="Price (e.g. ₹25,000)"
+                      placeholder="Price (e.g. Free Demo)"
                       className="rounded-2xl px-3.5 py-2 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none"
                     />
                     <input
                       type="text"
                       value={serviceDuration}
                       onChange={(e) => setServiceDuration(e.target.value)}
-                      placeholder="Duration (e.g. 6 months)"
+                      placeholder="Duration (e.g. 32 Lessons)"
                       className="rounded-2xl px-3.5 py-2 text-sm bg-[#f0f4f9] dark:bg-[#131314] border border-[#dfe4ea] dark:border-[#3c4043] focus:outline-none"
                     />
                   </div>

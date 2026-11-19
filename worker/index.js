@@ -83,6 +83,12 @@ function isLikelyQuestion(text) {
   );
 }
 
+function isServiceName(candidate, services) {
+  if (!candidate) return false;
+  const cLower = candidate.trim().toLowerCase();
+  return services.some((s) => s.name.trim().toLowerCase() === cLower);
+}
+
 const MONTHS = {
   jan: 1, january: 1,
   feb: 2, february: 2,
@@ -165,22 +171,34 @@ function extractStepByStepDetails(userText, currentMem, services, lastAssistantM
   const updated = { ...currentMem };
   const text = userText.trim();
   const lower = text.toLowerCase();
+  let matchedServiceInTurn = false;
+
+  // Wipe any previously poisoned name that matches a service name
+  if (isServiceName(updated.name, services)) {
+    updated.name = "";
+  }
 
   for (const s of services) {
     const sLower = s.name.toLowerCase();
-    if (lower.includes(sLower)) {
+    if (lower === sLower || lower.includes(sLower)) {
       updated.preferred_service = s.name;
+      matchedServiceInTurn = true;
       break;
     }
     const firstWord = sLower.split(" ")[0];
     if (firstWord.length >= 5 && lower.includes(firstWord)) {
       updated.preferred_service = s.name;
+      matchedServiceInTurn = true;
       break;
     }
   }
-  if (!updated.preferred_service && /agentic|agineyic|aginet/i.test(lower)) {
+
+  if (!matchedServiceInTurn && /agentic|agineyic|aginet/i.test(lower)) {
     const agentic = services.find((s) => /agentic/i.test(s.name));
-    if (agentic) updated.preferred_service = agentic.name;
+    if (agentic) {
+      updated.preferred_service = agentic.name;
+      matchedServiceInTurn = true;
+    }
   }
 
   if (isLikelyQuestion(text)) {
@@ -198,12 +216,18 @@ function extractStepByStepDetails(userText, currentMem, services, lastAssistantM
   const nameMatch = text.match(
     /(?:my name is|i am|i'm|this is|call me|change name to|name to)\s+([a-zA-Z][a-zA-Z\s]{1,26}?)(?:[.,!]|$)/i
   );
+
   if (nameMatch && nameMatch[1]) {
     const candidate = nameMatch[1].trim();
-    if (!/^(interested|looking|booking|want|need|here|beginner|intermediate|advanced)$/i.test(candidate)) {
+    if (
+      !isServiceName(candidate, services) &&
+      !/^(interested|looking|booking|want|need|here|beginner|intermediate|advanced)$/i.test(candidate)
+    ) {
       updated.name = candidate;
     }
   } else if (
+    !matchedServiceInTurn &&
+    !isServiceName(text, services) &&
     /name/i.test(lastAssistantMsg) &&
     /^[a-zA-Z][a-zA-Z\s]{1,26}$/.test(text) &&
     !/^(yes|ok|okay|sure|confirm|no|cancel|hi|hello|book|demo|slot|tomorrow|today|beginner|intermediate|advanced)$/i.test(text)
@@ -244,7 +268,7 @@ export class VendorWorkspace extends DurableObject {
     this.ctx.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS company_profile (
         id INTEGER PRIMARY KEY CHECK (id = 1),
-        company_name TEXT NOT NULL DEFAULT 'bluxury',
+        company_name TEXT NOT NULL DEFAULT '',
         tagline TEXT NOT NULL DEFAULT '',
         working_hours TEXT NOT NULL DEFAULT 'Mon-Sat, 10:00 AM - 7:00 PM',
         contact_info TEXT NOT NULL DEFAULT '',
@@ -340,16 +364,17 @@ export class VendorWorkspace extends DurableObject {
       )
       .toArray();
 
-    if (!rows[0] || !rows[0].company_name) {
-      this.ctx.storage.sql.exec(
-        `INSERT INTO company_profile (id, company_name, tagline, working_hours, contact_info, about_details, ai_model, vendor_pin)
-         VALUES (1, 'bluxury', '', 'Mon-Sat, 10:00 AM - 7:00 PM', '', '', '${DEFAULT_MODEL_ID}', '')
-         ON CONFLICT(id) DO UPDATE SET company_name = 'bluxury'`
-      );
-      return this.getProfileRow();
-    }
-
-    return rows[0];
+    return (
+      rows[0] || {
+        company_name: "",
+        tagline: "",
+        working_hours: "Mon-Sat, 10:00 AM - 7:00 PM",
+        contact_info: "",
+        about_details: "",
+        ai_model: DEFAULT_MODEL_ID,
+        vendor_pin: "",
+      }
+    );
   }
 
   getPublicState() {
@@ -366,7 +391,7 @@ export class VendorWorkspace extends DurableObject {
 
     return {
       profile: {
-        company_name: raw.company_name || "bluxury",
+        company_name: raw.company_name || "",
         tagline: raw.tagline,
         working_hours: raw.working_hours,
         contact_info: raw.contact_info,
@@ -381,6 +406,10 @@ export class VendorWorkspace extends DurableObject {
   }
 
   getOrCreateClient(clientId) {
+    const services = this.ctx.storage.sql
+      .exec("SELECT name FROM services")
+      .toArray();
+
     const existing = this.ctx.storage.sql
       .exec(
         "SELECT client_id, name, contact, project_summary, preferred_service, preferred_slot FROM clients WHERE client_id = ?",
@@ -390,13 +419,25 @@ export class VendorWorkspace extends DurableObject {
 
     if (existing) {
       const cleanName =
-        existing.name && existing.name.length <= 32 && !isLikelyQuestion(existing.name)
+        existing.name &&
+        existing.name.length <= 32 &&
+        !isLikelyQuestion(existing.name) &&
+        !isServiceName(existing.name, services)
           ? existing.name
           : "";
       const cleanSummary =
         existing.project_summary && !isLikelyQuestion(existing.project_summary)
           ? existing.project_summary
           : "";
+
+      if (cleanName !== existing.name) {
+        this.ctx.storage.sql.exec(
+          "UPDATE clients SET name = ? WHERE client_id = ?",
+          cleanName,
+          clientId
+        );
+      }
+
       return {
         ...existing,
         name: cleanName,
@@ -512,14 +553,23 @@ export class VendorWorkspace extends DurableObject {
         const enteredPin = String(msg.pin || "").trim();
         const enteredCompany = String(msg.companyName || "").trim();
 
-        if (!raw.vendor_pin && enteredPin) {
+        if (raw.vendor_pin && !enteredPin) {
+          ws.send(JSON.stringify({ type: "pin_result", verified: false }));
+          return;
+        }
+
+        if (!raw.vendor_pin) {
+          if (!enteredPin) {
+            ws.send(JSON.stringify({ type: "pin_result", verified: false }));
+            return;
+          }
           this.ctx.storage.sql.exec(
             `INSERT INTO company_profile (id, company_name, tagline, working_hours, contact_info, about_details, ai_model, vendor_pin)
              VALUES (1, ?, '', 'Mon-Sat, 10:00 AM - 7:00 PM', '', '', '${DEFAULT_MODEL_ID}', ?)
              ON CONFLICT(id) DO UPDATE SET
                company_name = COALESCE(NULLIF(excluded.company_name, ''), company_profile.company_name),
                vendor_pin = excluded.vendor_pin`,
-            enteredCompany,
+            enteredCompany || "My Company",
             enteredPin
           );
           this.broadcastState();
@@ -557,7 +607,7 @@ export class VendorWorkspace extends DurableObject {
              about_details = excluded.about_details,
              ai_model = excluded.ai_model,
              vendor_pin = excluded.vendor_pin`,
-          String(p.company_name || "bluxury").trim(),
+          String(p.company_name || "").trim(),
           String(p.tagline || "").trim(),
           String(p.working_hours || "Mon-Sat, 10:00 AM - 7:00 PM").trim(),
           String(p.contact_info || "").trim(),
@@ -801,6 +851,26 @@ export class VendorWorkspace extends DurableObject {
           preselectedService: clientMem.preferred_service || "",
         };
 
+        // Instant zero-token clean message for the final review step
+        if (nextMissingStep === "review" && !slotConflict && !outOfHours && !asksCatalog && !wantsDeepExplanation) {
+          const cleanReviewReply =
+            "Please review your booking details below—you can edit any field or tap Confirm Booking.";
+          ws.send(JSON.stringify({ type: "ai_stream_start", modelUsed: selectedModel }));
+          ws.send(JSON.stringify({ type: "ai_stream_update", content: cleanReviewReply }));
+          ws.send(
+            JSON.stringify({
+              type: "ai_stream_end",
+              reply: cleanReviewReply,
+              modelUsed: selectedModel,
+              clientMemory: this.getOrCreateClient(clientId),
+              bookingCreated: null,
+              uiHints,
+            })
+          );
+          this.emitLog(ws, "COMPLETE", `Review card rendered (0 AI tokens)`, Date.now() - reqStart);
+          return;
+        }
+
         const servicesText =
           state.services.length > 0
             ? state.services
@@ -826,9 +896,6 @@ export class VendorWorkspace extends DurableObject {
         } else if (wantsDeepExplanation) {
           taskGuidance = `Give a clear, detailed breakdown covering key topics, skills learned, duration, fee, and outcomes.`;
           maxTokens = 650;
-        } else if (nextMissingStep === "review") {
-          taskGuidance = `Say in 1 short sentence: "Please review your booking details below—you can edit any field or tap Confirm Booking."`;
-          maxTokens = 80;
         } else if (inBookingFlow && nextMissingStep) {
           const stepPrompts = {
             name: `Ask ONLY for their full name in 1 short sentence.`,
@@ -844,7 +911,7 @@ export class VendorWorkspace extends DurableObject {
           maxTokens = 150;
         }
 
-        const systemPrompt = `You are the concise assistant for "${state.profile.company_name || 'bluxury'}".
+        const systemPrompt = `You are the concise assistant for "${state.profile.company_name || 'Our Company'}".
 Hours: ${state.profile.working_hours} | Contact: ${state.profile.contact_info}
 Company Info: ${state.profile.about_details}
 Catalog:
